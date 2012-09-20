@@ -1,0 +1,199 @@
+<html>
+  <head>
+    <link rel="stylesheet" type="text/css" href="/static/map.css" media="screen" />
+  </head>
+
+
+  <body>
+    <div id="mapdiv"></div>
+  <h3> Filters</h3>
+  <div id="controls">
+    None: <input type="radio" name="group1" value="none" onclick="removeLayers();"><br />
+    Show Markers: <input type="radio" name="group1" value="markers" onclick="addMarkers();"><br />
+    Show Heat Map: <input type="radio" name="group1" value="heatmap" onclick="addHeatMap();">
+
+    
+    <!--Filter by Time of Day: <input type="checkbox" name="time_filter_bool" value="time_filter" onclick="ShowHide('TodSlider');"></ br>-->
+      <!--<div id="TodSlider" style="DISPLAY: none">-->
+      <!--Time of Day: <input type="range" min="0" max="23" value="0" name="time" onchange="showValue(this.value); filterOnTime(this.value); showCrime();">-->
+      <!--<span id="range">0</span></ br>-->
+      <!--Number of crimes: <span id="crime_num">0<span></ br>-->
+    </div>
+    <br />
+  </div>
+
+
+
+
+  <script src="http://www.openlayers.org/api/OpenLayers.js"></script>
+  <script type="text/javascript" src="/static/heatmap.js"></script> 
+  <script type="text/javascript" src="/static/heatmap-openlayers.js"></script>
+  <script type="text/javascript">
+
+    map = new OpenLayers.Map("mapdiv");
+    layer = new OpenLayers.Layer.OSM();
+    map.addLayer(layer);
+
+    var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
+    heatmap = new OpenLayers.Layer.Heatmap( "Heatmap Layer", map, layer, {visible: true, radius: 12}, {isBaseLayer: false, opacity: 0.3, projection: new OpenLayers.Projection("EPSG:4326")});
+
+    epsg4326 =  new OpenLayers.Projection("EPSG:4326"); //WGS 1984 projection
+    projectTo = map.getProjectionObject(); //The map projection (Spherical Mercator)
+ 
+    var position = new OpenLayers.LonLat( -87.595 ,41.7932 ).transform(epsg4326, projectTo);
+
+    var zoom=16;
+    map.setCenter (position, zoom);
+
+
+    var crimeData = [];
+
+    {% for crime in crimes_in_hydep %}
+    // adds each crime to crimeSpots Array
+    crimeData.push({
+        lonlat: new OpenLayers.LonLat({{ crime.longitude }}, {{ crime.latitude }}),
+        time: "{{ crime.date.hour }}",
+        month: "{{ crime.date.month }}",
+        })
+    {% endfor %}
+
+    var crimeSpots = {
+        max: 5,
+        data: [],
+    }
+
+
+
+    for (i=0; i<crimeData.length; i++) {
+          crimeSpots.data.push({
+            lonlat: crimeData[i].lonlat,
+            count: 1,
+            });
+    }
+
+    heatmap.setDataSet(crimeSpots);
+
+    //////
+
+    var crimeMarkers = new Array();
+
+    {% for crime in crimes_in_hydep %}
+    var feature = new OpenLayers.Feature.Vector(
+    new OpenLayers.Geometry.Point( {{ crime.longitude }} ,{{ crime.latitude }}).transform(epsg4326, projectTo),
+    {description:  'Crime Type:  {{ crime.crime_type }} <br> Date:  {{crime.date}} <br> Case Number: {{crime.case_num}} <br> Latitude: {{crime.latitude}} <br> Longitude: {{crime.longitude}}', time: "{{ crime.date.hour}}" },
+        {externalGraphic: '/static/marker.png', graphicHeight: 25, graphicWidth: 21, graphicXOffset:-12, graphicYOffset:-25  }
+        );
+    crimeMarkers.push(feature);
+    {% endfor %}
+
+    vectorLayer.addFeatures(crimeMarkers);
+
+    //Add a selector control to the vectorLayer with popup functions
+    var controls = {
+      selector: new OpenLayers.Control.SelectFeature(vectorLayer, { onSelect: createPopup, onUnselect: destroyPopup })
+    };
+
+    map.addControl(controls['selector']);
+    controls['selector'].activate();
+
+
+    function removeLayers() {
+        map.removeLayer(vectorLayer);
+        map.removeLayer(heatmap);
+      }
+
+    function addHeatMap() {
+       map.addLayer(heatmap);
+    }
+
+    function addMarkers() {
+      map.addLayer(vectorLayer);
+    }
+
+
+
+    function filterSpots(time){
+      // takes time as an optional argument
+      crimeSpots.data = [];
+
+      if(time){
+        for (crime in crimeData) {
+          if (crime.time == time){
+            crimeSpots.data.push({
+              lonlat: crime.lonlat,
+              count: 1,
+                });
+          }
+        }
+      }
+      else {
+        for (crime in crimeData) {
+           crimeSpots.data.push({
+              lonlat: crime.lonlat,
+              count: 1,
+                });
+        }
+      }
+    }
+
+
+
+      <!--function showValue(newValue)-->
+      <!--{-->
+       <!--document.getElementById("range").innerHTML=newValue;-->
+      <!--}-->
+
+
+    
+
+    
+
+
+      function createPopup(feature) {
+        feature.popup = new OpenLayers.Popup.FramedCloud("pop",
+            feature.geometry.getBounds().getCenterLonLat(),
+            null,
+            '<div class="markerContent">'+feature.attributes.description+'</div>',
+            null,
+            true,
+            function() { controls['selector'].unselectAll(); }
+        );
+        //feature.popup.closeOnMove = true;
+        map.addPopup(feature.popup);
+      }
+
+      function destroyPopup(feature) {
+        feature.popup.destroy();
+        feature.popup = null;
+      }
+
+
+
+    function filterOnTime(time) {
+      vectorLayer.removeFeatures(crimeMarkers);
+      for (i=0; i<crimeMarkers.length; i++) {
+        if (crimeMarkers[i].attributes.time == time)
+        {
+        vectorLayer.addFeatures(crimeMarkers[i]);
+        }
+      }
+    }
+
+    function showCrime() {
+      document.getElementById("crime_num").innerHTML=vectorLayer.features.length;
+    }
+
+    function ShowHide(divId)
+    {
+    if(document.getElementById(divId).style.display == 'none')
+    {
+    document.getElementById(divId).style.display='block';
+    }
+    else
+    {
+    document.getElementById(divId).style.display = 'none';
+    }
+    }
+
+  </script>
+</body></html>

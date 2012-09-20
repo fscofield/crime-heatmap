@@ -1,0 +1,10 @@
+<p> a title</p>
+{% if latest_crimes %}
+    <ul>
+    {% for crime in latest_crimes %}
+    <li><a href="/crimes/{{ crime.id }}/">{{ crime.crime_type }}</a>  {{ crime.date }}, {{ crime.block }}</li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No crimes exist in the database.</p>
+{% endif %}
