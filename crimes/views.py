@@ -2,6 +2,7 @@ from django.shortcuts import render_to_response
 from django.core.context_processors import csrf
 from crimes.models import Crime
 from django.template import Context, loader
+from datetime import datetime
 
 
 def index(request):
@@ -15,19 +16,45 @@ def index(request):
 
 def map(request):
     if not request.POST:
-        crimes_in_hydep =Crime.objects.all().filter(latitude__gte=41.78).filter(latitude__lte=41.80).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607)
+        summer = datetime(2012, 6, 1)
+        crimes = prep_crimes(Crime.objects.all().filter(latitude__gte=41.78).filter(latitude__lte=41.80).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607))
         c = {
-            'crimes_in_hydep' : crimes_in_hydep,
+            'crimes' : crimes,
             }
         c.update(csrf(request))
         return render_to_response('crimes/map.html', c)
     else:
-        time = request.POST.get('time')
-        crimes_in_hydep =Crime.objects.all().filter(latitude__gte=41.78).filter(latitude__lte=41.80).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607)
+        crimes = []
+        if request.POST.get('hyde-park'):
+            crimes = crimes + prep_crimes(Crime.objects.all().filter(latitude__gte=41.78).filter(latitude__lte=41.80).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607))
+        if request.POST.get('woodlawn'):
+            crimes = crimes + prep_crimes(Crime.objects.all().filter(latitude__gte=41.773).filter(latitude__lte=41.800).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607))
+        if request.POST.get('kenwood'):
+            crimes = crimes + prep_crimes(Crime.objects.all().filter(latitude__gte=41.80).filter(latitude__lte=41.816).filter(longitude__lte=-87.501).filter(longitude__gte=-87.607))
+        if request.POST.get('wash-park'):
+            crimes = crimes + prep_crimes(Crime.objects.all().filter(latitude__gte=41.78).filter(latitude__lte=41.802101).filter(longitude__lte=-87.607).filter(longitude__gte=-87.630))
+
         c = {
-            'crimes_in_hydep' : crimes_in_hydep,
+            'filter' : True,
+            'crimes' : crimes,
+            'time' : request.POST.get('time'),
+            'max' : request.POST.get('max'),
+            'radius' : request.POST.get('radius'),
             }
         c.update(csrf(request))
         return render_to_response('crimes/map.html', c)
 
 
+def prep_crimes(model_crimes):
+    crimes = []
+    for model_crime in model_crimes:
+        crime = { 
+                'crime_type' : model_crime.crime_type,
+                'case_num' : model_crime.case_num,
+                'date' : model_crime.date,
+                'latitude' : model_crime.latitude,
+                'longitude' : model_crime.longitude,
+                'description' : model_crime.description,
+                }
+        crimes.append(crime)
+    return crimes

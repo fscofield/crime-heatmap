@@ -5,22 +5,54 @@
 
 
   <body>
-    <div id="mapdiv"></div>
-  <h3> Filters</h3>
-  <div id="controls">
-    None: <input type="radio" name="group1" value="none" onclick="removeLayers();"><br />
-    Show Markers: <input type="radio" name="group1" value="markers" onclick="addMarkers();"><br />
-    Show Heat Map: <input type="radio" name="group1" value="heatmap" onclick="addHeatMap();">
+    <div id="content">
+      <div id="mapdiv"></div>
+      <div id="controls">
+        <h2> Filters</h2>
+        <div id="display-type" class="filter">
+         None: <input type="radio" name="group1" value="none" onclick="removeLayers();"><br />
+         Show Markers: <input type="radio" name="group1" value="markers" onclick="addMarkers();"><br />
+         Show Heat Map: <input type="radio" name="group1" value="heatmap" onclick="addHeatMap();">
+       </div>
+       <br>
+       <form action="/map/" method="post">{% csrf_token %}
+       <div id="heat-filters" class="filter">
+         <h3> Heat Filters:</h3>
+         Radius: <input type="range" min="0" max="30" value=filterVars.radius name="radius" onchange="showValue(this.value, 'radius'); assembleHeatSpots(this.value, filterVars.max, null, 1)">
+         <span id="radius">0</span></ br>
+         <br>
+
+         Max: <input type="range" min="1" max="20" value="filterVars.max" name="max" onchange="showValue(this.value, 'max'); assembleHeatSpots(filterVars.radius, this.value, null, 1)">
+         <span id="max">0</span></ br>
+       </div>
+
+       <div id="tod" class="filter">
+         <h3> Time Filters:</h3>
+         Time of Day: <input type="range" min="0" max="23" value="0" name="time" onchange="showValue(this.value); buildHeatmap(map, layer, {time: this.value});">
+      <span id="range">0</span></ br>
+       </div>
+       
+       <div id="community" class="filter">
+         <h3>Neighborhood:</h3>
+         <input type="checkbox" name="hyde-park" value="hyde-park"> Hyde Park <br>
+         <input type="checkbox" name="kenwood" value="kenwood"> Kenwood<br>
+         <input type="checkbox" name="woodlawn" value="woodlawn"> Woodlawn<br>
+         <input type="checkbox" name="wash-park" value="wash-park"> Washington Park<br>
+       </div>
+       
+       <div id="crime-type" class="filter">
+       
+       </div>
+       <input type="submit" value="reload">
+     </form>
 
     
-    <!--Filter by Time of Day: <input type="checkbox" name="time_filter_bool" value="time_filter" onclick="ShowHide('TodSlider');"></ br>-->
       <!--<div id="TodSlider" style="DISPLAY: none">-->
-      <!--Time of Day: <input type="range" min="0" max="23" value="0" name="time" onchange="showValue(this.value); filterOnTime(this.value); showCrime();">-->
-      <!--<span id="range">0</span></ br>-->
       <!--Number of crimes: <span id="crime_num">0<span></ br>-->
     </div>
     <br />
   </div>
+</div>
 
 
 
@@ -30,57 +62,120 @@
   <script type="text/javascript" src="/static/heatmap-openlayers.js"></script>
   <script type="text/javascript">
 
-    map = new OpenLayers.Map("mapdiv");
-    layer = new OpenLayers.Layer.OSM();
-    map.addLayer(layer);
+    // global variables
+  var map, layer, heatmap, vectorLayer, heatSpots
 
-    var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
-    heatmap = new OpenLayers.Layer.Heatmap( "Heatmap Layer", map, layer, {visible: true, radius: 12}, {isBaseLayer: false, opacity: 0.3, projection: new OpenLayers.Projection("EPSG:4326")});
+  var filterVars = {
+  // used to store values currently on map
+     max: 5,
+     radius: 20,
+     time: null,
+  }
 
-    epsg4326 =  new OpenLayers.Projection("EPSG:4326"); //WGS 1984 projection
-    projectTo = map.getProjectionObject(); //The map projection (Spherical Mercator)
- 
-    var position = new OpenLayers.LonLat( -87.595 ,41.7932 ).transform(epsg4326, projectTo);
 
-    var zoom=16;
-    map.setCenter (position, zoom);
+// creates and loads the map
+mainMap = new OpenLayers.Map("mapdiv");
+mainLayer = new OpenLayers.Layer.OSM();
+mainMap.addLayer(mainLayer);
 
+vectorLayer = new OpenLayers.Layer.Vector("Overlay");
+
+epsg4326 =  new OpenLayers.Projection("EPSG:4326"); //WGS 1984 projection
+projectTo = mainMap.getProjectionObject(); //The map projection (Spherical Mercator)
+
+var position = new OpenLayers.LonLat( -87.595 ,41.7932 ).transform(epsg4326, projectTo);
+
+var zoom = 15;
+mainMap.setCenter (position, zoom);
+
+assembleHeatSpots(20, 5, null);
+crimeMarkers = loadMarkers();
+
+
+function buildHeatmap(radius){
+      // heatmap step 1:
+      // creates a new heat map with given args (a dict)
+      // default args - replaces with new args
+      defaultRadius = 20;
+
+      if (radius) {
+        defaultRadius = radius;
+        // changes the global varialbes for contenuity
+        filterVars.radius = radius;
+      }
+
+      // overwrites the global variable 'heatmap' with a new heatmap layer
+      heatmap = new OpenLayers.Layer.Heatmap( "Heatmap Layer", mainMap, mainLayer, {visible: true, radius: defaultRadius}, {isBaseLayer: false, opacity: 0.3, projection: new OpenLayers.Projection("EPSG:4326")});
+    }
+
+
+function buildHeatSpots(time, max) {
+      // heatmap step 2: 
+      // creates a list of heatspots, based on given args
 
     var crimeData = [];
 
-    {% for crime in crimes_in_hydep %}
+    {% for crime in crimes %}
+      skip = "false";
     // adds each crime to crimeSpots Array
+    if (time && time != "{{ crime.date.hour }}")
+    {
+        skip = "true";
+    }
+
+    if (skip != "true") {
     crimeData.push({
         lonlat: new OpenLayers.LonLat({{ crime.longitude }}, {{ crime.latitude }}),
+        count: 1,
         time: "{{ crime.date.hour }}",
         month: "{{ crime.date.month }}",
         })
+    }
     {% endfor %}
 
-    var crimeSpots = {
-        max: 5,
-        data: [],
+    // resets global variable heatSpots
+    heatSpots = {
+      max: max,
+      data: crimeData,
     }
+    // resets global variables
+    filterVars.max = max;
+    filterVars.time = time;
+}
 
 
 
-    for (i=0; i<crimeData.length; i++) {
-          crimeSpots.data.push({
-            lonlat: crimeData[i].lonlat,
-            count: 1,
-            });
-    }
+function assembleHeatSpots(radius, max, time, display) {
+  // heatmap setp 3
+  // combines all parts of heatspots process and lays a new heatmap on the map.
+  if (heatmap) {
+  mainMap.removeLayer(heatmap);
+  }
 
-    heatmap.setDataSet(crimeSpots);
+  buildHeatmap(radius);
+  buildHeatSpots(time, max);
+  heatmap.setDataSet(heatSpots);
 
-    //////
+  if (display) {
+  mainMap.addLayer(heatmap);
+  }
+}
+
+
+
+
+
+
+
+// Loads Markers Layer
+    function loadMarkers() {
 
     var crimeMarkers = new Array();
 
-    {% for crime in crimes_in_hydep %}
+    {% for crime in crimes %}
     var feature = new OpenLayers.Feature.Vector(
     new OpenLayers.Geometry.Point( {{ crime.longitude }} ,{{ crime.latitude }}).transform(epsg4326, projectTo),
-    {description:  'Crime Type:  {{ crime.crime_type }} <br> Date:  {{crime.date}} <br> Case Number: {{crime.case_num}} <br> Latitude: {{crime.latitude}} <br> Longitude: {{crime.longitude}}', time: "{{ crime.date.hour}}" },
+    {description:  'Crime Type:  {{ crime.crime_type }} <br> Description: {{crime.description}} <br> Date:  {{crime.date}} <br> Case Number: {{crime.case_num}} <br> Latitude: {{crime.latitude}} <br> Longitude: {{crime.longitude}}', time: "{{ crime.date.hour}}" },
         {externalGraphic: '/static/marker.png', graphicHeight: 25, graphicWidth: 21, graphicXOffset:-12, graphicYOffset:-25  }
         );
     crimeMarkers.push(feature);
@@ -97,51 +192,29 @@
     controls['selector'].activate();
 
 
+    return crimeMarkers;
+    }
+
+
     function removeLayers() {
-        map.removeLayer(vectorLayer);
-        map.removeLayer(heatmap);
+        mainMap.removeLayer(vectorLayer);
+        mainMap.removeLayer(heatmap);
       }
 
     function addHeatMap() {
-       map.addLayer(heatmap);
+       mainMap.addLayer(heatmap);
     }
 
     function addMarkers() {
-      map.addLayer(vectorLayer);
+      mainMap.addLayer(vectorLayer);
     }
 
 
 
-    function filterSpots(time){
-      // takes time as an optional argument
-      crimeSpots.data = [];
-
-      if(time){
-        for (crime in crimeData) {
-          if (crime.time == time){
-            crimeSpots.data.push({
-              lonlat: crime.lonlat,
-              count: 1,
-                });
-          }
-        }
+      function showValue(newValue, divId)
+      {
+       document.getElementById(divId).innerHTML=newValue;
       }
-      else {
-        for (crime in crimeData) {
-           crimeSpots.data.push({
-              lonlat: crime.lonlat,
-              count: 1,
-                });
-        }
-      }
-    }
-
-
-
-      <!--function showValue(newValue)-->
-      <!--{-->
-       <!--document.getElementById("range").innerHTML=newValue;-->
-      <!--}-->
 
 
     
