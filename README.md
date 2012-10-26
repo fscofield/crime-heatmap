@@ -4,7 +4,7 @@ crime
 an Open Street Map representation of crime in Chicago
 
 
-![My image](https://github.com/fscofield/crime/blob/dev/screen-shot-heatmap.png)
+![My image](fscofield.github.com/crime/blob/dev/screen-shot-heatmap.png)
 
 This app uses the openlayers api of OpenStreetMaps
 
