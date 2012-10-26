@@ -63,8 +63,11 @@
   <script type="text/javascript">
 
     // global variables
-  var map, layer, heatmap, vectorLayer, heatSpots
-
+  var map, layer, heatmap, vectorLayer;
+  var heatSpots = {
+      data: null,
+      max: null,
+  }
   var filterVars = {
   // used to store values currently on map
      max: 5,
@@ -100,8 +103,6 @@ function buildHeatmap(radius){
 
       if (radius) {
         defaultRadius = radius;
-        // changes the global varialbes for contenuity
-        filterVars.radius = radius;
       }
 
       // overwrites the global variable 'heatmap' with a new heatmap layer
@@ -112,7 +113,7 @@ function buildHeatmap(radius){
 function buildHeatSpots(time, max) {
       // heatmap step 2: 
       // creates a list of heatspots, based on given args
-
+    if (time != filterVars.time || !(heatSpots.data)){
     var crimeData = [];
 
     {% for crime in crimes %}
@@ -133,14 +134,11 @@ function buildHeatSpots(time, max) {
     }
     {% endfor %}
 
-    // resets global variable heatSpots
-    heatSpots = {
-      max: max,
-      data: crimeData,
+    heatSpots.data = crimeData;
     }
-    // resets global variables
-    filterVars.max = max;
-    filterVars.time = time;
+
+    // resets global variable heatSpots
+    heatSpots.max = max;
 }
 
 
@@ -149,16 +147,23 @@ function assembleHeatSpots(radius, max, time, display) {
   // heatmap setp 3
   // combines all parts of heatspots process and lays a new heatmap on the map.
   if (heatmap) {
-  mainMap.removeLayer(heatmap);
+  //mainMap.removeLayer(heatmap);
   }
-
+  if (radius != filterVars.radius || !(heatmap)){
   buildHeatmap(radius);
+  }
   buildHeatSpots(time, max);
   heatmap.setDataSet(heatSpots);
 
   if (display) {
   mainMap.addLayer(heatmap);
   }
+
+  // resets global variables
+  filterVars.max = max;
+  filterVars.time = time;
+  filterVars.radius = radius;
+
 }
 
 
@@ -188,7 +193,7 @@ function assembleHeatSpots(radius, max, time, display) {
       selector: new OpenLayers.Control.SelectFeature(vectorLayer, { onSelect: createPopup, onUnselect: destroyPopup })
     };
 
-    map.addControl(controls['selector']);
+    mainMap.addControl(controls['selector']);
     controls['selector'].activate();
 
 
@@ -232,7 +237,7 @@ function assembleHeatSpots(radius, max, time, display) {
             function() { controls['selector'].unselectAll(); }
         );
         //feature.popup.closeOnMove = true;
-        map.addPopup(feature.popup);
+        mainMap.addPopup(feature.popup);
       }
 
       function destroyPopup(feature) {
