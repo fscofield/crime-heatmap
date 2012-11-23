@@ -35,7 +35,7 @@
     map.addLayer(layer);
 
     var vectorLayer = new OpenLayers.Layer.Vector("Overlay");
-    heatmap = new OpenLayers.Layer.Heatmap( "Heatmap Layer", map, layer, {visible: true, radius: 12}, {isBaseLayer: false, opacity: 0.3, projection: new OpenLayers.Projection("EPSG:4326")});
+    heatmap = new OpenLayers.Layer.Heatmap( "Heatmap Layer", map, layer, {visible: true, radius: 20}, {isBaseLayer: false, opacity: 0.3, projection: new OpenLayers.Projection("EPSG:4326")});
 
     epsg4326 =  new OpenLayers.Projection("EPSG:4326"); //WGS 1984 projection
     projectTo = map.getProjectionObject(); //The map projection (Spherical Mercator)
@@ -58,7 +58,7 @@
     {% endfor %}
 
     var crimeSpots = {
-        max: 5,
+        max: 4,
         data: [],
     }
 

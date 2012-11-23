@@ -5,6 +5,7 @@ from django.contrib import admin
 admin.autodiscover()
 
 urlpatterns = patterns('',
+    url(r'murder/$', 'crimes.views.murders'),
 	url(r'crimes/$', 'crimes.views.index'),
 	url(r'^polls/(?P<crime_id>\d+)/$', 'polls.views.detail'),
 	url(r'^admin/', include(admin.site.urls)),

@@ -31,3 +31,13 @@ def map(request):
         return render_to_response('crimes/map.html', c)
 
 
+def murders(request):
+    time = request.POST.get('time')
+    crimes_in_hydep = Crime.objects.filter(crime_type="HOMICIDE")
+    c = {
+        'crimes_in_hydep' : crimes_in_hydep,
+        }
+    c.update(csrf(request))
+    return render_to_response('crimes/map.html', c)
+
+
